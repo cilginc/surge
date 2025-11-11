@@ -143,11 +143,25 @@ func (d *Downloader) Download(ctx context.Context, rawurl, outPath string) error
 	}
 
 	// atomically move temp to dest
-	if err := os.Rename(tmpPath, outPath); err != nil {
+	destPath := outPath
+	if info, err := os.Stat(outPath); err == nil && info.IsDir() {
+		// When outPath is a directory we must have a valid filename.
+		// The filename variable was determined earlier. It might be invalid if derived from a directory name
+		if filename == "" || filename == "." || filename == "/" {
+			// Try to get it from URL as a last resort
+			filename = filepath.Base(parsed.Path)
+			if filename == "" || filename == "." || filename == "/" {
+				return fmt.Errorf("could not determine filename to save in directory %s", outPath)
+			}
+		}
+		destPath = filepath.Join(outPath, filename)
+	}
+
+	if renameErr := os.Rename(tmpPath, destPath); renameErr != nil {
 		// fallback: copy if rename fails across filesystems
 		in, rerr := os.Open(tmpPath)
 		if rerr == nil {
-			out, werr := os.Create(outPath)
+			out, werr := os.Create(destPath)
 			if werr == nil {
 				_, _ = io.Copy(out, in)
 				out.Close()
@@ -155,12 +169,10 @@ func (d *Downloader) Download(ctx context.Context, rawurl, outPath string) error
 			in.Close()
 		}
 		os.Remove(tmpPath)
-		if err != nil {
-			return fmt.Errorf("rename failed: %v", err)
-		}
+		return fmt.Errorf("rename failed: %v", renameErr)
 	}
 
-	fmt.Fprintf(os.Stderr, "\nDownloaded %s\n", outPath)
+	fmt.Fprintf(os.Stderr, "\nDownloaded %s\n", destPath)
 	return nil
 }
 
