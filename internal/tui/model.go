@@ -93,8 +93,8 @@ func InitialRootModel() RootModel {
 	pathInput := textinput.New()
 	pathInput.Placeholder = "."
 	pathInput.Width = InputWidth
-	pathInput.Prompt = ""
-	pathInput.SetValue(".")
+	pathInput.Prompt = "downloads/"
+	pathInput.SetValue("downloads/")
 
 	filenameInput := textinput.New()
 	filenameInput.Placeholder = "(auto-detect)"

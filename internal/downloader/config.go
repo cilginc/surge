@@ -18,10 +18,10 @@ const (
 
 // Chunk size constants for concurrent downloads
 const (
-	MinChunk     = 2 * MB  // Minimum chunk size
-	MaxChunk     = 16 * MB // Maximum chunk size
-	TargetChunk  = 8 * MB  // Target chunk size
-	AlignSize    = 4 * KB  // Align chunks to 4KB for filesystem
+	MinChunk     = 512 * KB // Minimum chunk size
+	MaxChunk     = 16 * MB  // Maximum chunk size
+	TargetChunk  = 8 * MB   // Target chunk size
+	AlignSize    = 4 * KB   // Align chunks to 4KB for filesystem
 	WorkerBuffer = 512 * KB
 
 	TasksPerWorker = 4 // Target tasks per connection
@@ -61,3 +61,14 @@ type DownloadConfig struct {
 	ProgressCh chan<- tea.Msg
 	State      *ProgressState
 }
+
+const (
+	maxTaskRetries = 3
+	retryBaseDelay = 200 * time.Millisecond
+
+	// Health check constants
+	healthCheckInterval = 1 * time.Second // How often to check worker health
+	slowWorkerThreshold = 0.15            // Restart if speed < x times of mean
+	slowWorkerGrace     = 2 * time.Second // Grace period before checking speed
+	speedEMAAlpha       = 0.5             // EMA smoothing factor
+)

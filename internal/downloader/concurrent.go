@@ -26,11 +26,6 @@ var bufPool = sync.Pool{
 	},
 }
 
-const (
-	maxTaskRetries = 3
-	retryBaseDelay = 200 * time.Millisecond
-)
-
 // ConcurrentDownloader handles multi-connection downloads
 type ConcurrentDownloader struct {
 	ProgressChan chan<- tea.Msg // Channel for events (start/complete/error)
@@ -63,6 +58,13 @@ type ActiveTask struct {
 	Task          Task
 	CurrentOffset int64 // Atomic
 	StopAt        int64 // Atomic
+
+	// Health monitoring fields
+	LastActivity int64              // Atomic: Unix nano timestamp of last data received
+	Speed        float64            // EMA-smoothed speed in bytes/sec (protected by mutex)
+	StartTime    time.Time          // When this task started
+	Cancel       context.CancelFunc // Cancel function to abort this task
+	SpeedMu      sync.Mutex         // Protects Speed field
 }
 
 // TaskQueue is a thread-safe work-stealing queue
@@ -394,6 +396,21 @@ func (d *ConcurrentDownloader) Download(ctx context.Context, rawurl, destPath st
 		}
 	}()
 
+	// Health monitor: detect slow workers
+	go func() {
+		ticker := time.NewTicker(healthCheckInterval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-balancerCtx.Done():
+				return
+			case <-ticker.C:
+				d.checkWorkerHealth()
+			}
+		}
+	}()
+
 	// Start workers
 	var wg sync.WaitGroup
 	workerErrors := make(chan error, numConns)
@@ -515,18 +532,24 @@ func (d *ConcurrentDownloader) worker(ctx context.Context, id int, rawurl string
 				time.Sleep(time.Duration(1<<attempt) * retryBaseDelay) //Exponential backoff incase of failure
 			}
 
-			// Register active task
+			// Register active task with per-task cancellable context
+			taskCtx, taskCancel := context.WithCancel(ctx)
+			now := time.Now()
 			activeTask := &ActiveTask{
 				Task:          task,
 				CurrentOffset: task.Offset,
 				StopAt:        task.Offset + task.Length,
+				LastActivity:  now.UnixNano(),
+				StartTime:     now,
+				Cancel:        taskCancel,
 			}
 			d.activeMu.Lock()
 			d.activeTasks[id] = activeTask
 			d.activeMu.Unlock()
 
 			taskStart := time.Now()
-			lastErr = d.downloadTask(ctx, rawurl, file, activeTask, buf, verbose, client)
+			lastErr = d.downloadTask(taskCtx, rawurl, file, activeTask, buf, verbose, client)
+			taskCancel()
 			utils.Debug("Worker %d: Task offset=%d length=%d took %v", id, task.Offset, task.Length, time.Since(taskStart))
 
 			// Check for cancellation BEFORE deleting from activeTasks
@@ -580,10 +603,6 @@ func (d *ConcurrentDownloader) downloadTask(ctx context.Context, rawurl string, 
 
 	task := activeTask.Task
 
-	// TODO
-	// We only request up to StopAt initially but StopAt might change during download
-	// Actually, we should request the full length to keep connection open,
-	// However, if we request full length, and stop halfway, the server might complain or we waste bandwidth?
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "+
 		"AppleWebKit/537.36 (KHTML, like Gecko) "+
 		"Chrome/120.0.0.0 Safari/537.36")
@@ -642,8 +661,24 @@ func (d *ConcurrentDownloader) downloadTask(ctx context.Context, rawurl string, 
 			if writeErr != nil {
 				return fmt.Errorf("write error: %w", writeErr)
 			}
+
+			now := time.Now()
 			offset += int64(readSoFar)
 			atomic.StoreInt64(&activeTask.CurrentOffset, offset)
+
+			// Update EMA speed
+			elapsed := now.Sub(activeTask.StartTime).Seconds()
+			if elapsed > 0 {
+				bytesDownloaded := offset - activeTask.Task.Offset
+				instantSpeed := float64(bytesDownloaded) / elapsed
+				activeTask.SpeedMu.Lock()
+				if activeTask.Speed == 0 {
+					activeTask.Speed = instantSpeed
+				} else {
+					activeTask.Speed = (1-speedEMAAlpha)*activeTask.Speed + speedEMAAlpha*instantSpeed
+				}
+				activeTask.SpeedMu.Unlock()
+			}
 
 			// Update progress via shared state only (removed duplicate tracking)
 			if d.State != nil {
@@ -737,4 +772,60 @@ func (d *ConcurrentDownloader) StealWork(queue *TaskQueue) bool {
 		utils.ConvertBytesToHumanReadable(stolenTask.Length), bestID, stolenTask.Offset, stolenTask.Offset+stolenTask.Length)
 
 	return true
+}
+
+// checkWorkerHealth detects slow workers and cancels them
+func (d *ConcurrentDownloader) checkWorkerHealth() {
+	d.activeMu.Lock()
+	defer d.activeMu.Unlock()
+
+	if len(d.activeTasks) == 0 {
+		return
+	}
+
+	now := time.Now()
+
+	// First pass: calculate mean speed
+	var totalSpeed float64
+	var speedCount int
+	for _, active := range d.activeTasks {
+		active.SpeedMu.Lock()
+		if active.Speed > 0 {
+			totalSpeed += active.Speed
+			speedCount++
+		}
+		active.SpeedMu.Unlock()
+	}
+
+	var meanSpeed float64
+	if speedCount > 0 {
+		meanSpeed = totalSpeed / float64(speedCount)
+	}
+
+	// Second pass: check for slow workers
+	for workerID, active := range d.activeTasks {
+
+		// timeSinceActivity := now.Sub(lastTime)
+		taskDuration := now.Sub(active.StartTime)
+
+		// Skip workers that are still in their grace period
+		if taskDuration < slowWorkerGrace {
+			continue
+		}
+
+		// Check for slow worker
+		if meanSpeed > 0 {
+			active.SpeedMu.Lock()
+			workerSpeed := active.Speed
+			active.SpeedMu.Unlock()
+
+			if workerSpeed > 0 && workerSpeed < slowWorkerThreshold*meanSpeed {
+				utils.Debug("Health: Worker %d slow (%.2f KB/s vs mean %.2f KB/s), cancelling",
+					workerID, workerSpeed/1024, meanSpeed/1024)
+				if active.Cancel != nil {
+					active.Cancel()
+				}
+			}
+		}
+	}
 }

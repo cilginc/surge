@@ -4,6 +4,7 @@ Surge Download Log Analyzer - Verbose Optimization Edition
 Parses debug.log and provides detailed performance insights.
 """
 
+import os
 import re
 import sys
 from datetime import datetime, timedelta
@@ -157,10 +158,12 @@ def parse_log_file(filename: str) -> dict:
     dl_complete_re = re.compile(r"Download .+ completed in (\S+) \(([^)]+)\)")
     probe_complete_re = re.compile(r"Probe complete - filename: (.+), size: (\d+)")
     balancer_split_re = re.compile(r"Balancer: split largest task \(total splits: (\d+)\)")
+    health_kill_re = re.compile(r"Health: Worker (\d+) (stalled|slow)")
     
     # Data structures
     workers: dict[int, WorkerStats] = {}
     balancer_splits: list[tuple[datetime, int]] = []
+    health_kills: list[tuple[datetime, int, str]] = []  # (timestamp, worker_id, reason)
     download_info = {}
     current_time: Optional[datetime] = None
     
@@ -234,10 +237,19 @@ def parse_log_file(filename: str) -> dict:
             download_info['filename'] = probe_match.group(1)
             download_info['size'] = int(probe_match.group(2))
             continue
+        
+        # Health check kills
+        health_match = health_kill_re.search(line)
+        if health_match:
+            wid = int(health_match.group(1))
+            reason = health_match.group(2)
+            health_kills.append((current_time, wid, reason))
+            continue
     
     return {
         'workers': workers,
         'balancer_splits': balancer_splits,
+        'health_kills': health_kills,
         'download_info': download_info
     }
 
@@ -348,9 +360,10 @@ def generate_speed_graph(workers: dict, output_file: str = "speed_graph.png"):
     print(f"\n📊 Speed graph saved to: {output_file}")
 
 
-def generate_per_worker_speed_graph(workers: dict, output_file: str = "worker_speeds.png"):
+def generate_per_worker_speed_graph(workers: dict, health_kills: list = None, output_file: str = "worker_speeds.png"):
     """
     Generate a subplot grid showing each worker's speed over time individually.
+    Shows vertical lines where workers were killed by health checks.
     """
     if not HAS_MATPLOTLIB:
         print("\n⚠️  Skipping per-worker graph (matplotlib not available).")
@@ -425,6 +438,16 @@ def generate_per_worker_speed_graph(workers: dict, output_file: str = "worker_sp
         for spine in ax.spines.values():
             spine.set_color('white')
             spine.set_alpha(0.3)
+        
+        # Add vertical lines for health check kills
+        if health_kills:
+            worker_kills = [(ts, reason) for ts, wid, reason in health_kills if wid == worker.worker_id]
+            for kill_time, reason in worker_kills:
+                color = '#ff4757' if reason == 'stalled' else '#ffa502'  # red for stalled, orange for slow
+                ax.axvline(x=kill_time, color=color, linestyle='-', linewidth=2, alpha=0.8)
+                # Add small annotation at top
+                ax.annotate(reason[0].upper(), xy=(kill_time, y_max * 0.95), 
+                           fontsize=7, color=color, ha='center', fontweight='bold')
     
     # Hide unused subplots
     for idx in range(num_workers, len(axes_flat)):
@@ -688,7 +711,7 @@ def analyze_and_report(data: dict):
     # ==========================================================================
     print_header("📊 SPEED GRAPH GENERATION")
     generate_speed_graph(workers)
-    generate_per_worker_speed_graph(workers)
+    generate_per_worker_speed_graph(workers, health_kills=data.get('health_kills', []))
     
     print("\n" + "=" * 60)
 

@@ -17,7 +17,8 @@ func Debug(format string, args ...any) {
 	// add timestamp to each debug message
 	timestamp := time.Now().Format("2006-01-02 15:04:05")
 	debugOnce.Do(func() {
-		debugFile, _ = os.Create("debug.log")
+		os.Mkdir("logs", 0755)
+		debugFile, _ = os.Create(fmt.Sprintf("logs/debug-%s.log", time.Now().Format("20060102-150405")))
 	})
 	if debugFile != nil {
 		fmt.Fprintf(debugFile, "[%s] %s\n", timestamp, fmt.Sprintf(format, args...))
