@@ -95,19 +95,42 @@ func (m RootModel) View() string {
 		)
 	}
 
-	// === List of Cards ===
+	// === List of Cards with Viewport Scrolling ===
+	// Calculate how many cards can fit on screen
+	availableHeight := m.height - HeaderHeight - 2 // Reserve space for footer
+	visibleCount := availableHeight / CardHeight
+	if visibleCount < 1 {
+		visibleCount = 1
+	}
+	if visibleCount > len(m.downloads) {
+		visibleCount = len(m.downloads)
+	}
+
+	// Determine visible range
+	startIdx := m.scrollOffset
+	endIdx := m.scrollOffset + visibleCount
+	if endIdx > len(m.downloads) {
+		endIdx = len(m.downloads)
+	}
+
 	var cards []string
-	for i, d := range m.downloads {
-		cards = append(cards, renderCard(d, i == m.cursor, m.width-ProgressBarWidthOffset))
+	for i := startIdx; i < endIdx; i++ {
+		cards = append(cards, renderCard(m.downloads[i], i == m.cursor, m.width-ProgressBarWidthOffset))
 	}
 
 	listContent := lipgloss.JoinVertical(lipgloss.Left, cards...)
+
+	// Scroll indicator
+	scrollInfo := ""
+	if len(m.downloads) > visibleCount {
+		scrollInfo = fmt.Sprintf(" [%d-%d of %d]", startIdx+1, endIdx, len(m.downloads))
+	}
 
 	return lipgloss.JoinVertical(lipgloss.Left,
 		header,
 		listContent,
 		"",
-		lipgloss.NewStyle().Foreground(ColorSubtext).Padding(0, 1).Render("[g] Add  [p] Pause/Resume  [d] Delete  [Enter] Details  [q] Quit"),
+		lipgloss.NewStyle().Foreground(ColorSubtext).Padding(0, 1).Render("[g] Add  [p] Pause/Resume  [d] Delete  [Enter] Details  [q] Quit"+scrollInfo),
 	)
 }
 

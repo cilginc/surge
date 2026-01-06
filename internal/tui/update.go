@@ -155,15 +155,24 @@ func (m RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 
-			// Navigation
+			// Navigation with viewport scroll adjustment
 			if msg.String() == "up" || msg.String() == "k" {
 				if m.cursor > 0 {
 					m.cursor--
+					// Scroll up if cursor goes above visible area
+					if m.cursor < m.scrollOffset {
+						m.scrollOffset = m.cursor
+					}
 				}
 			}
 			if msg.String() == "down" || msg.String() == "j" {
 				if m.cursor < len(m.downloads)-1 {
 					m.cursor++
+					// Scroll down if cursor goes below visible area
+					visibleCount := m.getVisibleCount()
+					if m.cursor >= m.scrollOffset+visibleCount {
+						m.scrollOffset = m.cursor - visibleCount + 1
+					}
 				}
 			}
 
@@ -306,15 +315,24 @@ func (m RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	// Propagate messages to progress bars
-	for i := range m.downloads {
+	// Propagate messages to progress bars - only update visible ones for performance
+	visibleCount := m.getVisibleCount()
+	startIdx := m.scrollOffset
+	endIdx := m.scrollOffset + visibleCount
+	if endIdx > len(m.downloads) {
+		endIdx = len(m.downloads)
+	}
+
+	for i := startIdx; i < endIdx; i++ {
 		var cmd tea.Cmd
 		var newModel tea.Model
 		newModel, cmd = m.downloads[i].progress.Update(msg)
 		if p, ok := newModel.(progress.Model); ok {
 			m.downloads[i].progress = p
 		}
-		cmds = append(cmds, cmd)
+		if cmd != nil {
+			cmds = append(cmds, cmd)
+		}
 	}
 
 	return m, tea.Batch(cmds...)

@@ -20,6 +20,10 @@ const (
 	PopupPaddingY          = 1
 	PopupPaddingX          = 2
 
+	// Viewport layout
+	CardHeight   = 5 // Each download card takes ~5 lines
+	HeaderHeight = 4 // Header + stats + spacing
+
 	// Channel Buffers - use consolidated constant from downloader
 	ProgressChannelBuffer = downloader.ProgressChannelBuffer
 

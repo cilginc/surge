@@ -46,7 +46,7 @@ const (
 
 // Channel buffer sizes
 const (
-	ProgressChannelBuffer = 16
+	ProgressChannelBuffer = 100
 )
 
 // DownloadConfig contains all parameters needed to start a download
