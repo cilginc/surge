@@ -26,11 +26,8 @@ EXE_SUFFIX = ".exe" if IS_WINDOWS else ""
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
-# Default test file URL (100MB test file)
-TEST_URL = "https://sin-speed.hetzner.com/100MB.bin"
-# Alternative URLs:
-# "https://speedtest.tele2.net/100MB.zip"
-# "http://ipv4.download.thinkbroadband.com/100MB.zip"
+# Default test file URL (test file)
+TEST_URL = "https://sin-speed.hetzner.com/1GB.bin"
 
 MOTRIX_REPO = "https://github.com/agalwood/Motrix.git"
 
@@ -516,27 +513,39 @@ def main():
         print("\n📦 SETUP")
         print("-" * 40)
         
-        # Check for required tools
-        if not which("go"):
-            print("  ❌ Go is not installed. Cannot proceed.")
-            sys.exit(1)
-        print("  ✅ Go found")
-        
-        if not which("git"):
-            print("  ❌ Git is not installed. Cannot proceed.")
-            sys.exit(1)
-        print("  ✅ Git found")
-        
-        # Build/install tools
-        surge_ok = build_surge(project_dir)
-        grab_bench_ok = build_grab_bench(project_dir)
-        aria2_ok = check_aria2c()
-        wget_ok = check_wget()
-        curl_ok = check_curl()
-        
+        run_all = not specific_service_requested
+
+        # Initialize all to False
+        surge_ok, grab_bench_ok, aria2_ok, wget_ok, curl_ok = False, False, False, False, False
         motrix_extra = None
-        if aria2_ok:
-            motrix_extra = clone_motrix_extra(motrix_clone_dir)
+        
+        # --- Go dependent tools ---
+        if run_all or args.surge or args.grab:
+            if not which("go"):
+                print("  ❌ Go is not installed. `surge` and `grab` benchmarks will be skipped.")
+            else:
+                print("  ✅ Go found")
+                if run_all or args.surge:
+                    surge_ok = build_surge(project_dir)
+                if run_all or args.grab:
+                    grab_bench_ok = build_grab_bench(project_dir)
+
+        # --- Aria2 dependent tools ---
+        if run_all or args.aria2 or args.motrix:
+            aria2_ok = check_aria2c()
+            if aria2_ok and (run_all or args.motrix):
+                if not which("git"):
+                     print("  ❌ Git is not installed. The Motrix config will not be cloned.")
+                else:
+                    print("  ✅ Git found")
+                    motrix_extra = clone_motrix_extra(motrix_clone_dir)
+        
+        # --- Other tools ---
+        if run_all or args.wget:
+            wget_ok = check_wget()
+        
+        if run_all or args.curl:
+            curl_ok = check_curl()
         
         # Define benchmarks to run
         tasks = []
