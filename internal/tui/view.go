@@ -204,7 +204,7 @@ func (m RootModel) View() string {
 		footer = lipgloss.Place(m.width, 1, lipgloss.Center, lipgloss.Center,
 			NotificationStyle.Render(m.notification))
 	} else {
-		footer = lipgloss.NewStyle().Foreground(ColorLightGray).Padding(0, 1).Render(" [G] Add  [P] Pause  [D] Delete  [/] Filter  [Q] Quit")
+		footer = lipgloss.NewStyle().Foreground(ColorLightGray).Padding(0, 1).Render(" [Q/W/E] Tabs  [A] Add  [P] Pause  [X] Delete  [/] Filter  [Ctrl+Q] Quit")
 	}
 
 	return lipgloss.JoinVertical(lipgloss.Left,

@@ -248,12 +248,32 @@ func (m RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch m.state {
 		case DashboardState:
-			if msg.String() == "q" || msg.String() == "ctrl+c" {
+			// Tab switching with Q/W/E
+			if msg.String() == "q" {
+				m.activeTab = TabQueued
+				m.updateListTitle()
+				m.UpdateListItems()
+				return m, nil
+			}
+			if msg.String() == "w" {
+				m.activeTab = TabActive
+				m.updateListTitle()
+				m.UpdateListItems()
+				return m, nil
+			}
+			if msg.String() == "e" {
+				m.activeTab = TabDone
+				m.updateListTitle()
+				m.UpdateListItems()
+				return m, nil
+			}
+			// Ctrl+Q to quit
+			if msg.String() == "ctrl+q" || msg.String() == "ctrl+c" {
 				// Graceful shutdown: pause all active downloads to save state
 				m.Pool.PauseAll()
 				return m, tea.Quit
 			}
-			if msg.String() == "g" {
+			if msg.String() == "a" {
 				m.state = InputState
 				m.focusedInput = 0
 				m.inputs[0].SetValue("")
@@ -266,6 +286,12 @@ func (m RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			if msg.String() == "tab" {
 				m.activeTab = (m.activeTab + 1) % 3
+				m.updateListTitle()
+				m.UpdateListItems()
+				return m, nil
+			}
+			if msg.String() == "d" {
+				m.activeTab = TabDone
 				m.updateListTitle()
 				m.UpdateListItems()
 				return m, nil
@@ -309,8 +335,8 @@ func (m RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.Batch(cmds...)
 			}
 
-			// Delete download
-			if msg.String() == "d" || msg.String() == "x" {
+			// Delete download (x only, d is for Done tab)
+			if msg.String() == "x" {
 				// Don't process delete if list is filtering
 				if m.list.FilterState() == list.Filtering {
 					break
