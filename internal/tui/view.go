@@ -91,7 +91,7 @@ func (m RootModel) View() string {
 	availableWidth := m.width - 4   // Margin
 
 	// Top Row Height (Logo + Graph)
-	topHeight := 8
+	topHeight := 9
 
 	// Bottom Row Height (List + Details)
 	bottomHeight := availableHeight - topHeight - 1
@@ -120,14 +120,23 @@ func (m RootModel) View() string {
 		lipgloss.NewStyle().Foreground(ColorGray).Render(statsText),
 	)
 
-	headerBox := lipgloss.NewStyle().
+	// Use PaneStyle for consistent borders with the graph box
+	headerBox := PaneStyle.
 		Width(leftWidth).
 		Height(topHeight).
 		Render(headerContent)
 
 	// --- SECTION 2: SPEED GRAPH (Top Right) ---
-	// Render the Sparkline
-	graphContent := renderSparkline(m.SpeedHistory, rightWidth-4, topHeight-4)
+	// Render the Sparkline (account for borders: 2 for left/right border, 2 for padding)
+	graphContentWidth := rightWidth - 4
+	if graphContentWidth < 10 {
+		graphContentWidth = 10
+	}
+	graphContentHeight := topHeight - 4
+	if graphContentHeight < 2 {
+		graphContentHeight = 2
+	}
+	graphContent := renderSparkline(m.SpeedHistory, graphContentWidth, graphContentHeight)
 
 	// Get current speed
 	currentSpeed := 0.0
@@ -140,28 +149,36 @@ func (m RootModel) View() string {
 		Width(rightWidth).
 		Height(topHeight).
 		Render(lipgloss.JoinVertical(lipgloss.Right,
-			lipgloss.NewStyle().Foreground(ColorNeonCyan).Render("NETWORK ACTIVITY"),
 			graphContent,
 			lipgloss.NewStyle().Foreground(ColorNeonPink).Bold(true).Render(currentSpeedStr),
 		))
 
 	// --- SECTION 3: DOWNLOAD LIST (Bottom Left) ---
-	// Calculate viewport
-	listContent := m.renderDownloadList(leftWidth-4, bottomHeight-2)
+	// Tab Bar
+	tabBar := renderTabs(m.activeTab)
+
+	// Calculate list height (Total bottom height - Tab bar height)
+	listHeight := bottomHeight - 2 // Tabs take ~2 lines
+	if listHeight < 5 {
+		listHeight = 5
+	}
+
+	// Render List
+	listContent := m.renderDownloadList(leftWidth-4, listHeight)
 
 	listBox := ListStyle.
 		Width(leftWidth).
 		Height(bottomHeight).
 		Render(lipgloss.JoinVertical(lipgloss.Left,
-			lipgloss.NewStyle().Foreground(ColorGray).Render(fmt.Sprintf("Downloads (%d)", len(m.downloads))),
-			"",
+			tabBar,
 			listContent,
 		))
 
 	// --- SECTION 4: DETAILS PANE (Bottom Right) ---
 	var detailContent string
-	if len(m.downloads) > 0 && m.cursor < len(m.downloads) {
-		detailContent = renderFocusedDetails(m.downloads[m.cursor], rightWidth-4)
+	filtered := m.getFilteredDownloads()
+	if len(filtered) > 0 && m.cursor < len(filtered) {
+		detailContent = renderFocusedDetails(filtered[m.cursor], rightWidth-4)
 	} else {
 		detailContent = lipgloss.Place(rightWidth-4, bottomHeight-4, lipgloss.Center, lipgloss.Center,
 			lipgloss.NewStyle().Foreground(ColorGray).Render("No Download Selected"))
@@ -191,8 +208,9 @@ func (m RootModel) View() string {
 // Helper to render the list
 func (m RootModel) renderDownloadList(w, h int) string {
 	var rows []string
+	filtered := m.getFilteredDownloads()
 
-	// Item height is roughly 3 lines (Title + Progress + Spacer)
+	// Item height is roughly 2 lines
 	itemHeight := 2
 	visibleCount := h / itemHeight
 	if visibleCount < 1 {
@@ -201,12 +219,15 @@ func (m RootModel) renderDownloadList(w, h int) string {
 
 	start := m.scrollOffset
 	end := start + visibleCount
-	if end > len(m.downloads) {
-		end = len(m.downloads)
+	if end > len(filtered) {
+		end = len(filtered)
 	}
 
 	for i := start; i < end; i++ {
-		d := m.downloads[i]
+		if i >= len(filtered) {
+			break
+		}
+		d := filtered[i]
 		isSelected := (i == m.cursor)
 
 		// Compact Row Style
@@ -384,4 +405,19 @@ func truncateString(s string, i int) string {
 		return string(runes[:i]) + "..."
 	}
 	return s
+}
+
+func renderTabs(active int) string {
+	tabs := []string{"Queued", "Active", "Done"}
+	var rendered []string
+	for i, t := range tabs {
+		var style lipgloss.Style
+		if i == active {
+			style = ActiveTabStyle
+		} else {
+			style = TabStyle
+		}
+		rendered = append(rendered, style.Render(t))
+	}
+	return lipgloss.JoinHorizontal(lipgloss.Top, rendered...)
 }

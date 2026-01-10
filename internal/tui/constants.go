@@ -22,8 +22,9 @@ const (
 	PopupWidth             = 70 // Consistent width for all popup dialogs
 
 	// Viewport layout
-	CardHeight       = 5  // Each download card takes ~5 lines
-	HeaderHeight     = 4  // Header + stats + spacing
+	// Viewport layout
+	CardHeight       = 2  // Compact rows for cyberpunk theme
+	HeaderHeight     = 8  // Logo + Graph height
 	FilePickerHeight = 12 // Height for file picker display
 
 	// Channel Buffers - use consolidated constant from downloader

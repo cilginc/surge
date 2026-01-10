@@ -59,6 +59,17 @@ var (
 			Foreground(ColorNeonCyan).
 			Bold(true)
 
+	TabStyle = lipgloss.NewStyle().
+			Foreground(ColorGray).
+			Padding(0, 1)
+
+	ActiveTabStyle = lipgloss.NewStyle().
+			Foreground(ColorNeonPink).
+			Border(lipgloss.NormalBorder(), false, false, true, false).
+			BorderForeground(ColorNeonPink).
+			Padding(0, 1).
+			Bold(true)
+
 	StatsLabelStyle = lipgloss.NewStyle().
 			Foreground(ColorGray).
 			Width(12)

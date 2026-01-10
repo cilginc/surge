@@ -25,6 +25,12 @@ const (
 	SearchState                          //SearchState is 6
 )
 
+const (
+	TabQueued = 0
+	TabActive = 1
+	TabDone   = 2
+)
+
 // StartDownloadMsg is sent from the HTTP server to start a new download
 type StartDownloadMsg struct {
 	URL      string
@@ -61,6 +67,7 @@ type RootModel struct {
 	width          int
 	height         int
 	state          UIState
+	activeTab      int // 0=Queued, 1=Active, 2=Done
 	inputs         []textinput.Model
 	focusedInput   int
 	progressChan   chan tea.Msg // Channel for events only (start/complete/error)
@@ -189,8 +196,9 @@ func (m RootModel) getVisibleCount() int {
 	if visibleCount < 1 {
 		visibleCount = 1
 	}
-	if visibleCount > len(m.downloads) {
-		visibleCount = len(m.downloads)
+	filteredLen := len(m.getFilteredDownloads())
+	if visibleCount > filteredLen {
+		visibleCount = filteredLen
 	}
 	return visibleCount
 }
@@ -199,4 +207,26 @@ func listenForActivity(sub chan tea.Msg) tea.Cmd {
 	return func() tea.Msg {
 		return <-sub
 	}
+}
+
+// Helper to get downloads for the current tab
+func (m RootModel) getFilteredDownloads() []*DownloadModel {
+	var filtered []*DownloadModel
+	for _, d := range m.downloads {
+		switch m.activeTab {
+		case TabQueued:
+			if !d.done && d.Speed == 0 && !d.paused {
+				filtered = append(filtered, d)
+			}
+		case TabActive:
+			if !d.done && (d.Speed > 0 || d.paused) {
+				filtered = append(filtered, d)
+			}
+		case TabDone:
+			if d.done {
+				filtered = append(filtered, d)
+			}
+		}
+	}
+	return filtered
 }

@@ -202,6 +202,12 @@ func (m RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.inputs[2].Blur()
 				return m, nil
 			}
+			if msg.String() == "tab" {
+				m.activeTab = (m.activeTab + 1) % 3
+				m.cursor = 0
+				m.scrollOffset = 0
+				return m, nil
+			}
 			if msg.String() == "h" {
 				// Open history view
 				if entries, err := downloader.LoadCompletedDownloads(); err == nil {
@@ -219,6 +225,7 @@ func (m RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 			// Navigation with viewport scroll adjustment
+			filtered := m.getFilteredDownloads()
 			if msg.String() == "up" || msg.String() == "k" {
 				if m.cursor > 0 {
 					m.cursor--
@@ -229,7 +236,7 @@ func (m RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 			if msg.String() == "down" || msg.String() == "j" {
-				if m.cursor < len(m.downloads)-1 {
+				if m.cursor < len(filtered)-1 {
 					m.cursor++
 					// Scroll down if cursor goes below visible area
 					visibleCount := m.getVisibleCount()
@@ -241,15 +248,15 @@ func (m RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			// Details
 			if msg.String() == "enter" {
-				if len(m.downloads) > 0 {
+				if len(filtered) > 0 {
 					m.state = DetailState
 				}
 			}
 
 			// Pause/Resume toggle
 			if msg.String() == "p" {
-				if m.cursor >= 0 && m.cursor < len(m.downloads) {
-					d := m.downloads[m.cursor]
+				if m.cursor >= 0 && m.cursor < len(filtered) {
+					d := filtered[m.cursor]
 					if !d.done {
 						if d.paused {
 							// Resume: create config and add to pool
@@ -277,23 +284,38 @@ func (m RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			// Delete download
 			if msg.String() == "d" || msg.String() == "x" {
-				if m.cursor >= 0 && m.cursor < len(m.downloads) {
-					d := m.downloads[m.cursor]
+				if m.cursor >= 0 && m.cursor < len(filtered) {
+					targetID := filtered[m.cursor].ID
 
-					// Cancel if active
-					m.Pool.Cancel(d.ID)
-
-					// Delete state files (now uses global config directory)
-					if d.URL != "" {
-						_ = downloader.DeleteStateByURL(d.URL)
+					// Find index in real list
+					realIdx := -1
+					for i, d := range m.downloads {
+						if d.ID == targetID {
+							realIdx = i
+							break
+						}
 					}
 
-					// Remove from list
-					m.downloads = append(m.downloads[:m.cursor], m.downloads[m.cursor+1:]...)
+					if realIdx != -1 {
+						d := m.downloads[realIdx]
 
-					// Adjust cursor
-					if m.cursor >= len(m.downloads) && m.cursor > 0 {
-						m.cursor--
+						// Cancel if active
+						m.Pool.Cancel(d.ID)
+
+						// Delete state files
+						if d.URL != "" {
+							_ = downloader.DeleteStateByURL(d.URL)
+						}
+
+						// Remove from list
+						m.downloads = append(m.downloads[:realIdx], m.downloads[realIdx+1:]...)
+
+						// Adjust cursor if needed
+						// We need to re-evaluate the filtered list size to clamp cursor
+						newFiltered := m.getFilteredDownloads()
+						if m.cursor >= len(newFiltered) && m.cursor > 0 {
+							m.cursor--
+						}
 					}
 				}
 				return m, nil
