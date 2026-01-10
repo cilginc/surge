@@ -24,47 +24,31 @@ func (m RootModel) View() string {
 	// These overlays sit on top of the dashboard or replace it
 
 	if m.state == InputState {
-		// Build the modal content
-		labelStyle := lipgloss.NewStyle().Width(12).Foreground(ColorLightGray)
-		hintStyle := lipgloss.NewStyle().Foreground(ColorLightGray)
+		labelStyle := lipgloss.NewStyle().Width(10).Foreground(ColorLightGray)
+		// Centered popup - compact layout
+		hintStyle := lipgloss.NewStyle().MarginLeft(1).Foreground(ColorLightGray) // Secondary
 		if m.focusedInput == 1 {
-			hintStyle = lipgloss.NewStyle().Foreground(ColorNeonPink)
+			hintStyle = lipgloss.NewStyle().MarginLeft(1).Foreground(ColorNeonPink) // Highlighted
 		}
-
-		urlLine := lipgloss.JoinHorizontal(lipgloss.Left,
-			labelStyle.Render("URL:"),
-			m.inputs[0].View(),
-		)
-
 		pathLine := lipgloss.JoinHorizontal(lipgloss.Left,
 			labelStyle.Render("Path:"),
 			m.inputs[1].View(),
-			"  ",
 			hintStyle.Render("[Tab] Browse"),
 		)
 
-		filenameLine := lipgloss.JoinHorizontal(lipgloss.Left,
-			labelStyle.Render("Filename:"),
-			m.inputs[2].View(),
-		)
-
-		modalContent := lipgloss.JoinVertical(lipgloss.Left,
-			urlLine,
+		popup := lipgloss.JoinVertical(lipgloss.Left,
+			TitleStyle.Render("ADD DOWNLOAD"),
 			"",
+			lipgloss.JoinHorizontal(lipgloss.Left, labelStyle.Render("URL:"), m.inputs[0].View()),
 			pathLine,
-			"",
-			filenameLine,
-			"",
+			lipgloss.JoinHorizontal(lipgloss.Left, labelStyle.Render("Filename:"), m.inputs[2].View()),
 			"",
 			lipgloss.NewStyle().Foreground(ColorLightGray).Render("[Enter] Start  [Esc] Cancel"),
 		)
 
-		// Wrap in btop-style box - use larger width to fit content
-		innerContent := lipgloss.NewStyle().Padding(1, 2).Render(modalContent)
-		modalBox := renderBtopBox("Add Download", innerContent, 72, 13, ColorNeonPink, false)
-
-		// Center the modal
-		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, modalBox)
+		return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center,
+			PaneStyle.Width(60).Padding(1, 2).Render(popup),
+		)
 	}
 
 	if m.state == FilePickerState {
@@ -102,11 +86,7 @@ func (m RootModel) View() string {
 	}
 
 	// === MAIN DASHBOARD LAYOUT ===
-	return m.renderMainDashboard()
-}
 
-// renderMainDashboard renders the main dashboard UI (used by View and as backdrop for modals)
-func (m RootModel) renderMainDashboard() string {
 	availableHeight := m.height - 2 // Margin
 	availableWidth := m.width - 4   // Margin
 
@@ -125,32 +105,26 @@ func (m RootModel) renderMainDashboard() string {
 
 	// --- SECTION 1: HEADER & LOGO (Top Left) ---
 	logoText := `
-   _______  ___________ ____ 
-  / ___/ / / / ___/ __ ` + "`" + `/ _ \
- (__  ) /_/ / /  / /_/ /  __/
-/____/\__,_/_/   \__, /\___/ 
-                /____/       `
+ ██████  ██    ██ ██████   ██████  ███████ 
+██       ██    ██ ██   ██ ██       ██      
+███████  ██    ██ ██████  ██   ███ █████   
+     ██  ██    ██ ██   ██ ██    ██ ██      
+███████   ██████  ██   ██  ██████  ███████`
 
-	// Create the header stats
+	// Calculate stats for tab bar
 	active, queued, downloaded := m.CalculateStats()
-	statsText := fmt.Sprintf("Active: %d  •  Queued: %d  •  Done: %d", active, queued, downloaded)
 
-	headerContent := lipgloss.JoinVertical(lipgloss.Left,
-		LogoStyle.Render(logoText),
-		lipgloss.NewStyle().Foreground(ColorLightGray).Render(statsText),
-	)
-
-	// Use PaneStyle for consistent borders with the graph box
-	headerBox := PaneStyle.
+	// Render logo without borders - clean look
+	headerBox := lipgloss.NewStyle().
 		Width(leftWidth).
 		Height(topHeight).
-		Render(headerContent)
+		Padding(1, 2).
+		Render(LogoStyle.Render(logoText))
 
 	// --- SECTION 2: SPEED GRAPH (Top Right) ---
-	// Calculate dimensions
-	axisWidth := 12
-	// Use -3 (Left Border + Right Border + Margin)
-	// This ensures it fills the box tight against the right side
+	// Calculate dimensions - compact axis for cleaner look
+	axisWidth := 6
+	// Account for borders and margin
 	graphContentWidth := rightWidth - axisWidth - 3
 	if graphContentWidth < 10 {
 		graphContentWidth = 10
@@ -177,13 +151,13 @@ func (m RootModel) renderMainDashboard() string {
 	// Render the Graph (Multi-line)
 	graphVisual := renderMultiLineGraph(m.SpeedHistory, graphContentWidth, graphHeight, maxSpeed, ColorNeonPink)
 
-	// Create the Axis (Left side)
+	// Create the Axis (Left side) - compact labels
 	axisStyle := lipgloss.NewStyle().Width(axisWidth).Foreground(ColorGray).Align(lipgloss.Right)
 
-	// Create Axis Labels
-	labelTop := axisStyle.Render(fmt.Sprintf("%.1f MB/s ", maxSpeed))
-	labelMid := axisStyle.Render(fmt.Sprintf("%.1f MB/s ", maxSpeed/2))
-	labelBot := axisStyle.Render("0.0 MB/s ")
+	// Create Axis Labels - compact format without "MB/s" suffix
+	labelTop := axisStyle.Render(fmt.Sprintf("%.1f", maxSpeed))
+	labelMid := axisStyle.Render(fmt.Sprintf("%.1f", maxSpeed/2))
+	labelBot := axisStyle.Render("0")
 
 	// Build the axis column to match graphHeight exactly
 	var axisColumn string
@@ -318,27 +292,20 @@ func renderFocusedDetails(d *DownloadModel, w int) string {
 		Foreground(ColorGray).
 		Render(strings.Repeat("─", contentWidth))
 
-	// File info section
+	// File info section - compact layout
 	fileInfo := lipgloss.JoinVertical(lipgloss.Left,
 		lipgloss.JoinHorizontal(lipgloss.Left, StatsLabelStyle.Render("Filename:"), StatsValueStyle.Render(truncateString(d.Filename, contentWidth-14))),
-		"",
 		lipgloss.JoinHorizontal(lipgloss.Left, StatsLabelStyle.Render("Status:"), StatsValueStyle.Render(getDownloadStatus(d))),
 		lipgloss.JoinHorizontal(lipgloss.Left, StatsLabelStyle.Render("Size:"), StatsValueStyle.Render(fmt.Sprintf("%s / %s", utils.ConvertBytesToHumanReadable(d.Downloaded), utils.ConvertBytesToHumanReadable(d.Total)))),
 	)
 
-	// Progress section with percentage aligned right
+	// Progress section - compact
 	progressLabel := lipgloss.NewStyle().
 		Foreground(ColorNeonCyan).
 		Bold(true).
 		Render("PROGRESS")
-	// progressPct was previously used for explicit percentage display
-	progressHeader := lipgloss.JoinHorizontal(lipgloss.Top,
-		progressLabel,
-		lipgloss.NewStyle().Width(contentWidth-lipgloss.Width(progressLabel)).Render(""),
-	)
 	progressSection := lipgloss.JoinVertical(lipgloss.Left,
-		progressHeader,
-		"",
+		progressLabel,
 		lipgloss.NewStyle().MarginLeft(1).Render(progView),
 	)
 
@@ -350,30 +317,25 @@ func renderFocusedDetails(d *DownloadModel, w int) string {
 	)
 
 	// URL section
-	urlSection := lipgloss.JoinVertical(lipgloss.Left,
-		lipgloss.JoinHorizontal(lipgloss.Left, StatsLabelStyle.Render("URL:"), lipgloss.NewStyle().Foreground(ColorLightGray).Render(truncateString(d.URL, contentWidth-14))),
+	urlSection := lipgloss.JoinHorizontal(lipgloss.Left,
+		StatsLabelStyle.Render("URL:"),
+		lipgloss.NewStyle().Foreground(ColorLightGray).Render(truncateString(d.URL, contentWidth-14)),
 	)
 
-	// Combine all sections with dividers and spacing
+	// Combine all sections - dense layout with dividers
 	content := lipgloss.JoinVertical(lipgloss.Left,
 		fileInfo,
-		"",
 		divider,
-		"",
 		progressSection,
-		"",
 		divider,
-		"",
 		statsSection,
-		"",
 		divider,
-		"",
 		urlSection,
 	)
 
-	// Wrap in a container with margins
+	// Wrap in a container with reduced padding
 	return lipgloss.NewStyle().
-		Padding(1, 2).
+		Padding(0, 2).
 		Render(content)
 }
 
@@ -604,30 +566,17 @@ func renderBtopBox(title string, content string, width, height int, borderColor 
 			line = ""
 		}
 		// Pad or truncate line to fit innerWidth
-		// Use lipgloss to handle ANSI widths correctly
-		// Note: We use Render() with Width to ensure padding is correct.
-		// We avoid text wrapping by checking width, but if it happens, we might need to handle it.
-		// However, for this UI, we expect callers to size content appropriately or accept wrapping behavior if overflowing.
-		// To define a hard limit without wrapping is tricky in pure lipgloss without Softwrap,
-		// but standard Width() behavior pads short lines which fixes the main issue.
-		// For long lines, we simply render and if it wraps, we'll visually see it, but it won't break the border alignment because
-		// we wrap the RESULT in the border.
-		// Wait - we need exactly ONE line per row to match vertical borders.
-
-		// Safe approach: render with width. If it contains newlines (wrapped), take absolute first line
-		// or ensure we don't wrap by expecting content to fit.
-		// The original bug was manual truncation of ANSI strings.
-		// We'll trust lipgloss to measure and pad.
-
-		renderedLine := lipgloss.NewStyle().Width(innerWidth).Render(line)
-
-		// If the line is too long and wraps, lipgloss returns multiline string.
-		// We must truncate it to a single line to preserve box shape.
-		if strings.Contains(renderedLine, "\n") {
-			renderedLine = strings.Split(renderedLine, "\n")[0]
+		lineWidth := lipgloss.Width(line)
+		if lineWidth < innerWidth {
+			line = line + strings.Repeat(" ", innerWidth-lineWidth)
+		} else if lineWidth > innerWidth {
+			// Truncate (simplified - just take first innerWidth chars)
+			runes := []rune(line)
+			if len(runes) > innerWidth {
+				line = string(runes[:innerWidth])
+			}
 		}
-
-		wrappedLines = append(wrappedLines, borderStyle.Render(vertical)+renderedLine+borderStyle.Render(vertical))
+		wrappedLines = append(wrappedLines, borderStyle.Render(vertical)+line+borderStyle.Render(vertical))
 	}
 
 	// Combine all parts
