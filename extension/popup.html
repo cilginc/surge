@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <meta charset="UTF-8">
   <style>
@@ -13,8 +14,8 @@
       width: 280px;
       padding: 16px;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-      color: #e4e4e7;
+      background: #282a36;
+      color: #f8f8f2;
     }
 
     .header {
@@ -32,17 +33,17 @@
     .header h1 {
       font-size: 18px;
       font-weight: 600;
-      background: linear-gradient(135deg, #818cf8, #a78bfa);
+      background: linear-gradient(135deg, #ff79c6, #bd93f9);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
     }
 
     .status-card {
-      background: rgba(255, 255, 255, 0.05);
+      background: rgba(68, 71, 90, 0.5);
       border-radius: 12px;
       padding: 14px;
       margin-bottom: 12px;
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      border: 1px solid #44475a;
     }
 
     .status-row {
@@ -53,7 +54,7 @@
 
     .status-label {
       font-size: 13px;
-      color: #a1a1aa;
+      color: #a9b1d6;
     }
 
     .status-indicator {
@@ -71,13 +72,13 @@
     }
 
     .status-dot.online {
-      background: #22c55e;
-      box-shadow: 0 0 8px rgba(34, 197, 94, 0.5);
+      background: #50fa7b;
+      box-shadow: 0 0 8px rgba(80, 250, 123, 0.5);
     }
 
     .status-dot.offline {
-      background: #ef4444;
-      box-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
+      background: #ff5555;
+      box-shadow: 0 0 8px rgba(255, 85, 85, 0.5);
     }
 
     .toggle-container {
@@ -110,7 +111,7 @@
       left: 0;
       right: 0;
       bottom: 0;
-      background-color: #3f3f46;
+      background-color: #44475a;
       transition: 0.3s;
       border-radius: 24px;
     }
@@ -122,36 +123,38 @@
       width: 18px;
       left: 3px;
       bottom: 3px;
-      background-color: white;
+      background-color: #f8f8f2;
       transition: 0.3s;
       border-radius: 50%;
     }
 
-    input:checked + .toggle-slider {
-      background: linear-gradient(135deg, #818cf8, #a78bfa);
+    input:checked+.toggle-slider {
+      background: linear-gradient(135deg, #ff79c6, #bd93f9);
     }
 
-    input:checked + .toggle-slider:before {
+    input:checked+.toggle-slider:before {
       transform: translateX(20px);
     }
 
     .help-text {
       font-size: 11px;
-      color: #71717a;
+      color: #a9b1d6;
       margin-top: 12px;
       padding-top: 12px;
-      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      border-top: 1px solid #44475a;
       line-height: 1.5;
     }
 
     code {
-      background: rgba(255, 255, 255, 0.1);
+      background: rgba(139, 233, 253, 0.15);
+      color: #8be9fd;
       padding: 2px 6px;
       border-radius: 4px;
       font-size: 11px;
     }
   </style>
 </head>
+
 <body>
   <div class="header">
     <img src="icons/icon48.png" alt="Surge">
@@ -182,4 +185,5 @@
 
   <script src="popup.js"></script>
 </body>
+
 </html>
