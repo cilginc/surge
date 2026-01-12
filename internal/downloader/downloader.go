@@ -13,7 +13,9 @@ import (
 	"surge/internal/utils"
 )
 
-// SingleDownloader handles single-threaded downloads
+// SingleDownloader handles single-threaded downloads for servers that don't support range requests.
+// NOTE: Pause/resume is NOT supported because this downloader is only used when
+// the server doesn't support Range headers. If interrupted, the download must restart.
 type SingleDownloader struct {
 	Client       *http.Client
 	ProgressChan chan<- tea.Msg // Channel for events (start/complete/error)
@@ -33,8 +35,9 @@ func NewSingleDownloader(id string, progressCh chan<- tea.Msg, state *ProgressSt
 	}
 }
 
-// Download downloads a file using a single connection
-// Uses pre-probed metadata (file size and filename already known)
+// Download downloads a file using a single connection.
+// This is used for servers that don't support Range requests.
+// If interrupted, the download cannot be resumed and must restart from the beginning.
 func (d *SingleDownloader) Download(ctx context.Context, rawurl, destPath string, fileSize int64, filename string, verbose bool) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawurl, nil)
 	if err != nil {
@@ -49,97 +52,113 @@ func (d *SingleDownloader) Download(ctx context.Context, rawurl, destPath string
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusPartialContent {
+	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
-	// Use .surge extension for incomplete downloads
+	// Use .surge extension for incomplete file
 	workingPath := destPath + IncompleteSuffix
 	outFile, err := os.Create(workingPath)
 	if err != nil {
 		return err
 	}
-	closed := false
 
+	// Track whether we completed successfully for cleanup
+	success := false
 	defer func() {
-		if !closed {
-			outFile.Close()
-		}
-		if err != nil {
+		outFile.Close()
+		if !success {
 			os.Remove(workingPath)
 		}
 	}()
 
 	start := time.Now()
 
-	// Copy response body to file
+	// Copy response body to file with context cancellation support
 	var written int64
-	buf := make([]byte, 32*1024)
+	buf := make([]byte, d.Runtime.GetWorkerBufferSize())
 
 	for {
-		nr, er := resp.Body.Read(buf)
+		// Check for context cancellation (allows clean shutdown)
+		select {
+		case <-ctx.Done():
+			// Can't resume - server doesn't support Range requests
+			return ctx.Err()
+		default:
+		}
+
+		nr, readErr := resp.Body.Read(buf)
 		if nr > 0 {
-			nw, ew := outFile.Write(buf[0:nr])
+			nw, writeErr := outFile.Write(buf[0:nr])
 			if nw > 0 {
 				written += int64(nw)
 				if d.State != nil {
 					d.State.Downloaded.Store(written)
 				}
 			}
-			if ew != nil {
-				err = ew
-				break
+			if writeErr != nil {
+				return fmt.Errorf("write error: %w", writeErr)
 			}
 			if nr != nw {
-				err = io.ErrShortWrite
-				break
+				return io.ErrShortWrite
 			}
 		}
-		if er != nil {
-			if er != io.EOF {
-				err = er
+		if readErr != nil {
+			if readErr == io.EOF {
+				break // Done reading
 			}
-			break
+			return fmt.Errorf("read error: %w", readErr)
 		}
 	}
 
-	if err != nil {
-		return fmt.Errorf("copy failed: %w", err)
+	if err := outFile.Sync(); err != nil {
+		return fmt.Errorf("sync error: %w", err)
 	}
-
-	if err = outFile.Sync(); err != nil {
-		return err
+	if err := outFile.Close(); err != nil {
+		return fmt.Errorf("close error: %w", err)
 	}
-	if err = outFile.Close(); err != nil {
-		return err
-	}
-	closed = true
-
-	elapsed := time.Since(start)
-	speed := float64(written) / 1024.0 / elapsed.Seconds()
-	fmt.Fprintf(os.Stderr, "\nDownloaded %s in %s (%s/s)\n",
-		destPath,
-		elapsed.Round(time.Second),
-		utils.ConvertBytesToHumanReadable(int64(speed*1024)),
-	)
 
 	// Rename .surge file to final destination
-	if renameErr := os.Rename(workingPath, destPath); renameErr != nil {
-		if in, rerr := os.Open(workingPath); rerr == nil {
-			defer in.Close()
-			if out, werr := os.Create(destPath); werr == nil {
-				defer out.Close()
-				if _, cerr := io.Copy(out, in); cerr != nil {
-					return cerr
-				}
-			} else {
-				return werr
-			}
-		} else {
-			return rerr
+	if err := os.Rename(workingPath, destPath); err != nil {
+		// Fallback: copy if rename fails (cross-device)
+		if copyErr := copyFile(workingPath, destPath); copyErr != nil {
+			return fmt.Errorf("failed to finalize file: %w", copyErr)
 		}
 		os.Remove(workingPath)
 	}
 
+	success = true // Mark successful so defer doesn't clean up
+
+	// Only print stats in verbose mode
+	if verbose {
+		elapsed := time.Since(start)
+		speed := float64(written) / elapsed.Seconds()
+		fmt.Fprintf(os.Stderr, "\nDownloaded %s in %s (%s/s)\n",
+			destPath,
+			elapsed.Round(time.Second),
+			utils.ConvertBytesToHumanReadable(int64(speed)),
+		)
+	}
+
 	return nil
+}
+
+// copyFile copies a file from src to dst (fallback when rename fails)
+func copyFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	if _, err := io.Copy(out, in); err != nil {
+		return err
+	}
+	return out.Sync()
 }
