@@ -33,10 +33,14 @@ func (r *ProgressReporter) PollCmd() tea.Cmd {
 		// Check if download is done
 		if r.state.Done.Load() {
 			elapsed := time.Since(r.state.StartTime)
+			total := r.state.TotalSize
+			if total <= 0 {
+				total = r.state.Downloaded.Load()
+			}
 			return messages.DownloadCompleteMsg{
 				DownloadID: r.state.ID,
 				Elapsed:    elapsed,
-				Total:      r.state.TotalSize,
+				Total:      total,
 			}
 		}
 

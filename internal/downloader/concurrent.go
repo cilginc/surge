@@ -509,6 +509,7 @@ func (d *ConcurrentDownloader) Download(ctx context.Context, rawurl, destPath st
 		// Save state for resume (use computed value for consistency)
 		state := &DownloadState{
 			URL:        d.URL,
+			ID:         d.ID,
 			DestPath:   destPath,
 			TotalSize:  fileSize,
 			Downloaded: computedDownloaded, // FIX: Use computed value instead of atomic counter
@@ -548,7 +549,7 @@ func (d *ConcurrentDownloader) Download(ctx context.Context, rawurl, destPath st
 	}
 
 	// Delete state file on successful completion
-	_ = DeleteState(d.URL, destPath)
+	_ = DeleteState(d.ID, d.URL, destPath)
 
 	// Note: Download completion notifications are handled by the TUI via DownloadCompleteMsg
 

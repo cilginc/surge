@@ -648,7 +648,7 @@ func TestConcurrentDownloader_ResumePartialDownload(t *testing.T) {
 	if err := SaveState(server.URL(), destPath, savedState); err != nil {
 		t.Fatalf("Failed to save state: %v", err)
 	}
-	defer DeleteState(server.URL(), destPath)
+	defer DeleteState("resume-id", server.URL(), destPath)
 
 	// Now resume download
 	state := NewProgressState("resume-test", fileSize)

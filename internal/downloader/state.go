@@ -28,8 +28,8 @@ func StateHash(url string, destPath string) string {
 
 // DownloadState represents persisted download state for resume
 type DownloadState struct {
-	StateHash  string `json:"state_hash"` // Hash of URL+DestPath for unique identification
-	URLHash    string `json:"url_hash"`   // Hash of URL only (for master list compatibility)
+	ID         string `json:"id"`       // Unique ID of the download
+	URLHash    string `json:"url_hash"` // Hash of URL only (for master list compatibility)
 	URL        string `json:"url"`
 	DestPath   string `json:"dest_path"`
 	TotalSize  int64  `json:"total_size"`
@@ -62,7 +62,6 @@ func SaveState(url string, destPath string, state *DownloadState) error {
 	}
 
 	// Set hashes and timestamps
-	state.StateHash = StateHash(url, destPath)
 	state.URLHash = URLHash(url)
 	state.PausedAt = time.Now().Unix()
 	if state.CreatedAt == 0 {
@@ -80,12 +79,12 @@ func SaveState(url string, destPath string, state *DownloadState) error {
 
 	// Also update master list (uses StateHash for unique identification)
 	entry := DownloadEntry{
-		StateHash: state.StateHash,
-		URLHash:   state.URLHash,
-		URL:       state.URL,
-		DestPath:  state.DestPath,
-		Filename:  state.Filename,
-		Status:    "paused",
+		ID:       state.ID,
+		URLHash:  state.URLHash,
+		URL:      state.URL,
+		DestPath: state.DestPath,
+		Filename: state.Filename,
+		Status:   "paused",
 	}
 	_ = AddToMasterList(entry)
 
@@ -112,24 +111,23 @@ func LoadState(url string, destPath string) (*DownloadState, error) {
 
 // DeleteState removes the state file after successful completion
 // Uses URL+destPath for unique state file identification
-func DeleteState(url string, destPath string) error {
+func DeleteState(id string, url string, destPath string) error {
 	statePath := getStatePath(url, destPath)
-	stateHash := StateHash(url, destPath)
 
 	if err := os.Remove(statePath); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to delete state file: %w", err)
 	}
 
-	// Remove from master list using StateHash for unique identification
-	_ = RemoveFromMasterList(stateHash)
+	// Remove from master list using ID
+	_ = RemoveFromMasterList(id)
 
 	return nil
 }
 
 // DeleteStateByURL removes state file by URL and destPath (for TUI delete)
 // This replaces DeleteStateByDir since we now use a global directory
-func DeleteStateByURL(url string, destPath string) error {
-	return DeleteState(url, destPath)
+func DeleteStateByURL(id string, url string, destPath string) error {
+	return DeleteState(id, url, destPath)
 }
 
 // ================== Master List Functions ==================
@@ -141,14 +139,15 @@ type MasterList struct {
 
 // DownloadEntry represents a download in the master list
 type DownloadEntry struct {
-	StateHash   string `json:"state_hash"` // Hash of URL+DestPath for unique identification
-	URLHash     string `json:"url_hash"`   // Hash of URL only (backward compatibility)
+	ID          string `json:"id"`       // Unique ID of the download
+	URLHash     string `json:"url_hash"` // Hash of URL only (backward compatibility)
 	URL         string `json:"url"`
 	DestPath    string `json:"dest_path"`
 	Filename    string `json:"filename"`
 	Status      string `json:"status"`       // "paused", "completed", "error"
 	TotalSize   int64  `json:"total_size"`   // File size in bytes
 	CompletedAt int64  `json:"completed_at"` // Unix timestamp when completed
+	TimeTaken   int64  `json:"time_taken"`   // Duration in milliseconds (for completed)
 }
 
 func getMasterListPath() string {
@@ -203,16 +202,16 @@ func AddToMasterList(entry DownloadEntry) error {
 		list = &MasterList{Downloads: []DownloadEntry{}}
 	}
 
-	// Update existing or append new (use StateHash for unique identification if available)
+	// Update existing or append new
 	found := false
 	for i, e := range list.Downloads {
-		// Match by StateHash (unique per URL+destPath) if available, otherwise fall back to URLHash
-		if entry.StateHash != "" && e.StateHash == entry.StateHash {
+		// Match by ID if available
+		if entry.ID != "" && e.ID == entry.ID {
 			list.Downloads[i] = entry
 			found = true
 			break
-		} else if entry.StateHash == "" && e.URLHash == entry.URLHash && e.StateHash == "" {
-			// Legacy: match by URLHash only if no StateHash (for completed downloads)
+		} else if entry.ID == "" && e.URLHash == entry.URLHash {
+			// Legacy fallback (should ideally not happen for new entries)
 			list.Downloads[i] = entry
 			found = true
 			break
@@ -227,17 +226,16 @@ func AddToMasterList(entry DownloadEntry) error {
 
 // RemoveFromMasterList removes a download entry from the master list
 // Uses stateHash for unique identification (falls back to URLHash for legacy entries)
-func RemoveFromMasterList(stateHash string) error {
+func RemoveFromMasterList(id string) error {
 	list, err := LoadMasterList()
 	if err != nil {
 		return nil // Nothing to remove
 	}
 
-	// Filter out the entry (match by StateHash or URLHash)
+	// Filter out the entry
 	newDownloads := make([]DownloadEntry, 0, len(list.Downloads))
 	for _, e := range list.Downloads {
-		// Remove if StateHash matches, or if legacy entry with matching URLHash
-		if e.StateHash == stateHash || (e.StateHash == "" && e.URLHash == stateHash) {
+		if e.ID == id {
 			continue // Skip this entry (remove it)
 		}
 		newDownloads = append(newDownloads, e)

@@ -234,6 +234,7 @@ func (m RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if d.done {
 					break
 				}
+				d.Total = msg.Total
 				d.Downloaded = d.Total
 				d.Elapsed = msg.Elapsed
 				d.done = true
@@ -247,12 +248,14 @@ func (m RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// Persist to history (TUI has the correct filename from DownloadStartedMsg)
 				_ = downloader.AddToMasterList(downloader.DownloadEntry{
 					URLHash:     downloader.URLHash(d.URL),
+					ID:          d.ID,
 					URL:         d.URL,
-					DestPath:    "", // Not tracked in TUI model
+					DestPath:    d.Destination,
 					Filename:    d.Filename,
 					Status:      "completed",
 					TotalSize:   d.Total,
 					CompletedAt: time.Now().Unix(),
+					TimeTaken:   d.Elapsed.Milliseconds(),
 				})
 
 				break
@@ -482,7 +485,7 @@ func (m RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 						// Delete state files
 						if dl.URL != "" && dl.Destination != "" {
-							_ = downloader.DeleteStateByURL(dl.URL, dl.Destination)
+							_ = downloader.DeleteStateByURL(dl.ID, dl.URL, dl.Destination)
 						}
 
 						// Delete partial/incomplete files (only for non-completed downloads)
@@ -500,7 +503,7 @@ func (m RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 						// Remove completed downloads from master list (for Done tab persistence)
 						if dl.done && dl.URL != "" {
-							_ = downloader.RemoveFromMasterList(downloader.URLHash(dl.URL))
+							_ = downloader.RemoveFromMasterList(dl.ID)
 						}
 
 						// Remove from list
@@ -762,7 +765,7 @@ func (m RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if key.Matches(msg, m.keys.History.Delete) {
 				if m.historyCursor >= 0 && m.historyCursor < len(m.historyEntries) {
 					entry := m.historyEntries[m.historyCursor]
-					_ = downloader.RemoveFromMasterList(entry.URLHash)
+					_ = downloader.RemoveFromMasterList(entry.ID)
 					m.historyEntries, _ = downloader.LoadCompletedDownloads()
 					if m.historyCursor >= len(m.historyEntries) && m.historyCursor > 0 {
 						m.historyCursor--

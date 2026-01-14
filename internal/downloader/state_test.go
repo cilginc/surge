@@ -123,14 +123,6 @@ func TestSaveLoadState(t *testing.T) {
 	if loadedState.URLHash == "" {
 		t.Error("URLHash was not set")
 	}
-	if loadedState.StateHash == "" {
-		t.Error("StateHash was not set")
-	}
-
-	// Cleanup
-	if err := DeleteState(testURL, testDestPath); err != nil {
-		t.Errorf("Cleanup failed: %v", err)
-	}
 }
 
 func TestDeleteState(t *testing.T) {
@@ -157,7 +149,7 @@ func TestDeleteState(t *testing.T) {
 	}
 
 	// Delete state
-	if err := DeleteState(testURL, testDestPath); err != nil {
+	if err := DeleteState("test-id", testURL, testDestPath); err != nil {
 		t.Fatalf("DeleteState failed: %v", err)
 	}
 
@@ -218,7 +210,7 @@ func TestStateOverwrite(t *testing.T) {
 	}
 
 	// Cleanup
-	DeleteState(testURL, testDestPath)
+	DeleteState("test-id", testURL, testDestPath)
 }
 
 // TestDuplicateURLStateIsolation verifies that downloading the same URL multiple times
@@ -305,7 +297,7 @@ func TestDuplicateURLStateIsolation(t *testing.T) {
 	}
 
 	// Cleanup
-	DeleteState(testURL, dest1)
-	DeleteState(testURL, dest2)
-	DeleteState(testURL, dest3)
+	DeleteState("id1", testURL, dest1)
+	DeleteState("id2", testURL, dest2)
+	DeleteState("id3", testURL, dest3)
 }

@@ -14,7 +14,6 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/google/uuid"
 
 	"surge/internal/config"
 	"surge/internal/downloader"
@@ -189,7 +188,10 @@ func InitialRootModel() RootModel {
 	var downloads []*DownloadModel
 	if pausedEntries, err := downloader.LoadPausedDownloads(); err == nil {
 		for _, entry := range pausedEntries {
-			id := uuid.New().String() // Generate new UUID for each loaded download
+			var id string
+			if entry.ID != "" {
+				id = entry.ID
+			}
 			dm := NewDownloadModel(id, entry.URL, entry.Filename, 0)
 			dm.paused = true
 			dm.Destination = entry.DestPath // Store destination for state lookup on resume
@@ -211,9 +213,14 @@ func InitialRootModel() RootModel {
 	// Load completed downloads from master list (for Done tab persistence)
 	if completedEntries, err := downloader.LoadCompletedDownloads(); err == nil {
 		for _, entry := range completedEntries {
-			id := uuid.New().String() // Generate new UUID for each loaded download
+			var id string
+			if entry.ID != "" {
+				id = entry.ID
+			}
 			dm := NewDownloadModel(id, entry.URL, entry.Filename, entry.TotalSize)
 			dm.done = true
+			dm.Destination = entry.DestPath
+			dm.Elapsed = time.Duration(entry.TimeTaken) * time.Millisecond
 			dm.Downloaded = entry.TotalSize
 			dm.progress.SetPercent(1.0)
 			downloads = append(downloads, dm)
