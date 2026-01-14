@@ -70,7 +70,7 @@ surge get <URL> -o ~/Downloads
 
 | | |
 |---|---|
-| **File** | 1 GB ([Hetzner Speed Test](https://speed.hetzner.com/)) |
+| **File** | 1GB.bin ([link](https://sin-speed.hetzner.com/1GB.bin)) |
 | **OS** | Windows 11 Pro |
 | **CPU** | AMD Ryzen 5 5600X |
 | **RAM** | 16 GB DDR4 |
@@ -98,4 +98,6 @@ Contributions are welcome! Feel free to fork, make changes, and submit a pull re
 
 ## License
 
-This project is licensed under the MIT License see the [LICENSE](LICENSE) file for details.
+If you find Surge useful, consider giving it a ⭐ it helps others discover the project!
+
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
