@@ -655,7 +655,7 @@ func getDownloadStatus(d *DownloadModel) string {
 	case d.paused:
 		return style.Foreground(ColorStatePaused).Render("⏸ Paused")
 	case d.Speed == 0 && d.Downloaded == 0:
-		return style.Foreground(ColorStatePaused).Render("o Queued")
+		return style.Foreground(ColorStatePaused).Render("⋯ Queued")
 	default:
 		return style.Foreground(ColorStateDownloading).Render("⬇ Downloading")
 	}
