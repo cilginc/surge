@@ -86,6 +86,28 @@ async function isInterceptEnabled() {
     return result[INTERCEPT_ENABLED_KEY] !== false;
 }
 
+
+
+// Check if download is fresh (custom heuristic: < 60 seconds old AND in_progress)
+function isFreshDownload(downloadItem) {
+    // Filter out completed or interrupted downloads (history items)
+    if (downloadItem.state && downloadItem.state !== "in_progress") {
+        return false;
+    }
+
+    if (!downloadItem.startTime) return true; // unexpected, assume fresh
+
+    const startTime = new Date(downloadItem.startTime).getTime();
+    const now = Date.now();
+    const diff = now - startTime;
+
+    // If download started more than 60 seconds ago, it's likely history sync
+    if (diff > 60000) {
+        return false;
+    }
+    return true;
+}
+
 // Listen for downloads
 chrome.downloads.onCreated.addListener(async (downloadItem) => {
     console.log("[Surge] Download detected:", downloadItem.url);
@@ -94,6 +116,12 @@ chrome.downloads.onCreated.addListener(async (downloadItem) => {
     const enabled = await isInterceptEnabled();
     if (!enabled) {
         console.log("[Surge] Interception disabled, using browser download");
+        return;
+    }
+
+    // Filter historical downloads
+    if (!isFreshDownload(downloadItem)) {
+        console.log("[Surge] Ignoring historical download");
         return;
     }
 
