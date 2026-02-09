@@ -23,7 +23,7 @@ func TestGetStateDir(t *testing.T) {
 	if dir == "" {
 		t.Error("GetStateDir returned empty string")
 	}
-	if !strings.HasSuffix(dir, "state") {
+	if !strings.HasSuffix(dir, "data") {
 		t.Errorf("Expected path to end with 'state', got: %s", dir)
 	}
 	// State dir should be under surge dir
@@ -114,15 +114,15 @@ func TestPathConsistency(t *testing.T) {
 
 func TestDirectoryHierarchy(t *testing.T) {
 	surgeDir := GetSurgeDir()
-	stateDir := GetDataDir()
+	dataDir := GetDataDir()
 	logsDir := GetLogsDir()
 
 	// State and logs should be subdirectories of surge dir
-	expectedStateDir := filepath.Join(surgeDir, "state")
+	expectedDataDir := filepath.Join(surgeDir, "data")
 	expectedLogsDir := filepath.Join(surgeDir, "logs")
 
-	if stateDir != expectedStateDir {
-		t.Errorf("StateDir should be %s, got: %s", expectedStateDir, stateDir)
+	if dataDir != expectedDataDir {
+		t.Errorf("StateDir should be %s, got: %s", expectedDataDir, dataDir)
 	}
 
 	if logsDir != expectedLogsDir {
