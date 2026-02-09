@@ -175,12 +175,12 @@ func (d *ConcurrentDownloader) worker(
 
 			if lastErr == nil {
 				// Check if we stopped early due to stealing
-				stopAt := atomic.LoadInt64(&activeTask.StopAt)
-				current := atomic.LoadInt64(&activeTask.CurrentOffset)
-				if current < task.Offset+task.Length && current >= stopAt {
-					// We were stopped early this is expected success for the partial work
-					// The stolen part is already in the queue
-				}
+				// stopAt := atomic.LoadInt64(&activeTask.StopAt)
+				// current := atomic.LoadInt64(&activeTask.CurrentOffset)
+				// if current < task.Offset+task.Length && current >= stopAt {
+				// We were stopped early this is expected success for the partial work
+				// The stolen part is already in the queue
+				// }
 				break
 			}
 
@@ -410,7 +410,7 @@ func (d *ConcurrentDownloader) StealWork(queue *TaskQueue) bool {
 	d.activeMu.Lock()
 	defer d.activeMu.Unlock()
 
-	var bestID int = -1
+	bestID := -1
 	var maxRemaining int64 = 0
 	var bestActive *ActiveTask
 
@@ -450,9 +450,9 @@ func (d *ConcurrentDownloader) StealWork(queue *TaskQueue) bool {
 	stolenStart := max(finalCurrent, newStopAt)
 
 	// Double check: ensure we didn't race and lose the chunk
-	currentStopAt := atomic.LoadInt64(&active.StopAt)
-	if stolenStart >= currentStopAt && currentStopAt != newStopAt {
-	}
+	// currentStopAt := atomic.LoadInt64(&active.StopAt)
+	// if stolenStart >= currentStopAt && currentStopAt != newStopAt {
+	// }
 
 	originalEnd := current + remaining
 

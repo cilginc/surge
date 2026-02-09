@@ -237,7 +237,7 @@ func (m *RootModel) UpdateListItems() {
 			// Find the download globally
 			for _, d := range m.downloads {
 				if d.ID == targetID {
-					newTab := -1
+					var newTab int
 					if d.done {
 						newTab = TabDone
 					} else if d.Speed > 0 {

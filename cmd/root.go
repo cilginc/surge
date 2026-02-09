@@ -959,7 +959,7 @@ func initializeGlobalState() {
 
 	// Clean up old logs
 	settings, err := config.LoadSettings()
-	retention := 5 // default fallback
+	var retention int // default fallback
 	if err == nil {
 		retention = settings.General.LogRetentionCount
 	} else {

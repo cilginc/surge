@@ -304,9 +304,9 @@ func (m RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Update list items to reflect new filename
 		m.UpdateListItems()
 		// Switch to active tab so user sees it
-		if m.Settings.General.AutoResume {
-			// Optional: switch tab logic if desired
-		}
+		// if m.Settings.General.AutoResume {
+		// Optional: switch tab logic if desired
+		// }
 		// Add log entry
 		m.addLogEntry(LogStyleStarted.Render("⬇ Started: " + msg.Filename))
 		return m, tea.Batch(cmds...)
